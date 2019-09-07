@@ -53,7 +53,6 @@ algo([
 function cmd() {
 	ask('$green;'+username+'$e; $bold;$$e; ', cmdline => {
 		let args = cmdline.split(/ +(?=(?:(?:[^"]*"){2})*[^"]*$)/g);
-		console.log(args)
 		let command = (args[0]||'unknown');
 		if (typeof commands[command] === 'undefined')
 			command = 'unknown';
@@ -62,17 +61,61 @@ function cmd() {
 }
 
 let commands = {
-	'unknown': (args, callback) => {
-		println('Command $bold;\"'+args[0]+'\"$e; not found. Type $bold;\"help\"$e; for help.');
-		callback();
+	'unknown': (args, next) => {
+		println('Команда $bold;\"'+args[0]+'\"$e; не найдена. Введите $bold;\"help\"$e; для помощи.');
+		next();
 	},
-	'help': (args, callback) => {
+	'help': (args, next) => {
 		println('There should be a help message...');
-		callback();
+		next();
 	},
-	'games': (args, callback) => {
+	'games': (args, next) => {
 		let command = (args[1]||'info');
+		if (command[0] == '-')
+			command = 'info';
+		switch (command) {
+			case 'info':
+				GET(SERVER_HOST+'/games/info' + (
+					args.indexOf('--advanced')>=0 || args.indexOf('-a')>=0 ? 
+						'?token='+encodeURIComponent(token)+'&advanced' :
+						''),
+					(status, data) => {
+						if (status && data.status === 'ok') {
+							table(data.servers);
+						} else if (status && data.status !== 'ok') {
+							println('$red;Ошибка: $bold;'+(data.errCode==1?'Отказано в доступе.':data.errText)+'$e;$e;');
+						} else {
+							println('$red;Ошибка$e;');
+						}
+						next();
+					});
+				break;
+			default:
+				println('Команда $bold;"'+command+'"$e; не найдена.');
+				next();
+		}
+	},
+	'logout': (args, next) => {
+		GET(SERVER_HOST+'/account/logout?token='+encodeURIComponent(token), (status, data) => {
+			if (status && data.status === 'ok') {
+				println("Токен очищен $green;успешно$e;.");
+
+			} else if (status && data.status !== 'ok') {
+				println("Токен не был очищен. $grey;()$e;")
+			} else {
+				println("$red;Ошибка$e;");
+			}
+
+			Storage.remove('bodjo-token');
+			Storage.remove('bodjo-username');
+			type('Обновление терминала через 3 секунды...', () => {
+				setTimeout(() => {
+					window.location.reload();
+				}, 3000)
+			})
+		});
 		
+
 	}
 }
 

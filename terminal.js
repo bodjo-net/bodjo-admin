@@ -41,7 +41,34 @@ function ask(str, callback, pass) {
 		callback(answer);
 	}
 }
+function table(data) {
+	println("Таблица, $bold;" + data.length + "$e; элементов.");
+	if (data.length > 0) {
+		let keys = Object.keys(data[0]);
+		let lengths = new Array(keys.length).fill(0);
+		for (let i = -1; i < data.length; ++i) {
+			for (let k = 0; k < keys.length; ++k) {
+				let s = i == -1 ? keys[k] : format(keys[k],data[i][keys[k]],true);
+				if (s.length > lengths[k])
+					lengths[k] = s.length;
+			}
+		}
 
+		println(Array.from(keys, (k, i) => '$bold;'+k+'$e;' + ' '.repeat(lengths[i]-k.length)).join(' '));
+		for (let i = 0; i < data.length; ++i) {
+			println(Array.from(keys, (k, j) =>
+				format(k,data[i][k],false) + ' '.repeat(lengths[j]-format(k,data[i][k],true).length)
+			).join(' '));
+		}
+	}
+}
+function format(key, e, len) {
+	if (key === 'secret')
+		return len?'<secret>':'$spoiler('+e.toString()+');<secret>$e;';
+	if (typeof e == 'boolean')
+		return len?e.toString():((e?'$green;':'$red;')+e.toString()+'$e;');
+	return e.toString();
+}
 function lastline(str) {
 	pre.innerHTML = pre.innerHTML.substring(0, pre.innerHTML.lastIndexOf('\n')) + ('\n'+str)
 }
@@ -70,13 +97,32 @@ function print(str) {
 function clear() {
 	pre.innerHTML = '';
 }
+let spoilers = {};
 function parse(str) {
 	return str
 				.replace(/\</g, '&lt;')
 				.replace(/\>/g, '&gt;')
 				.replace(/ /g, '&nbsp;')
+				.replace(/\$spoiler\((.+)\);/g, function (_, m) {
+					let id = randomID();
+					spoilers[id] = m;
+					return '<span class="spoiler" onClick="openSpoiler(\''+id+'\')" id="'+id+'">';
+				})
 				.replace(/\$e;/g, '</span>')
 				.replace(/\$(\w{1,10});/g, '<span class="$1">');
+}
+function openSpoiler(id) {
+	let spoiler = document.querySelector('#'+id);
+	if (spoiler.className.indexOf('open') >= 0)
+		return;
+	spoiler.className = 'spoiler open';
+	spoiler.innerHTML = parse(spoilers[id]);
+}
+function randomID(n) {
+	if (typeof n === 'undefined')
+		n = 16;
+	let q = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPSDFGHJKLZXCVBNM";
+	return Array.from({length:n}, () => q[Math.round(Math.random()*(q.length-1))]).join('');
 }
 function addSelection(input, pass) {
 	let v = pass?'*'.repeat(input.value.length):input.value, start = input.selectionStart, end = input.selectionEnd;
