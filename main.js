@@ -51,7 +51,7 @@ algo([
 ]);
 
 function cmd() {
-	ask('$green;'+username+'$e; $bold;$$e; ', cmdline => {
+	ask('$cyan;bodjo.net$e; $green;'+username+'$e; $bold;$$e; ', cmdline => {
 		let args = cmdline.split(/ +(?=(?:(?:[^"]*"){2})*[^"]*$)/g);
 		let command = (args[0]||'unknown');
 		if (typeof commands[command] === 'undefined')
@@ -70,7 +70,7 @@ let commands = {
 		next();
 	},
 	'games': (args, next) => {
-		let command = (args[1]||'info');
+		let command = (args[1]||'info'), servername, keys, data
 		if (command[0] == '-')
 			command = 'info';
 		switch (command) {
@@ -89,6 +89,115 @@ let commands = {
 						}
 						next();
 					});
+				break;
+			case 'remove':
+				servername = args[2];
+				if (typeof servername !== 'string') {
+					println('Формат команды:\ngames remove <server-name>');
+					next();
+					break;
+				}
+				GET(SERVER_HOST+'/games/remove?name='+encodeURIComponent(servername)+'&token='+encodeURIComponent(token),
+					(status, data) => {
+						if (status) {
+							if (data.status === 'ok') {
+								println('Запись о сервере $bold;"'+servername+'"$e; удалена $green;успешно$e;.');
+								next();
+							} else {
+								println('$red;$bold;Ошибка$e;: ' + (['','Отказано в доступе','Сервер не найден'])[data.errCode] + '$e;');
+								next();
+							}
+						} else {
+							println('$red;Ошибка$e;');
+						}
+					})
+				break;
+			case 'edit':
+				keys = ['game', 'host', 'apihost'], data = {};
+				let before = {};
+				servername = args[2];
+				if (typeof servername !== 'string') {
+					println('Формат команды:\ngames edit <server-name>');
+					next();
+					break;
+				}
+				function ke(i) {
+					if (i == keys.length) {
+						data.name = servername;
+						requestEdit(data);
+						return;
+					}
+					ask('$bold;'+keys[i]+'$e; $grey;('+before[keys[i]]+')$e;: ', function (answer) {
+						data[keys[i]] = answer || before[keys[i]];
+						ke(i+1);
+					});
+				}
+
+				GET(SERVER_HOST+'/games/info?advanced&token='+encodeURIComponent(token),
+					(status, data) => {
+						if (status && data.status === 'ok') {
+							let serverdata = data.servers.find(server => server.name == servername);
+							if (typeof serverdata === 'undefined') {
+								println('$red;$bold;Ошибка:$e; Сервер с таким именем не был найден$e;');
+								next();
+							} else {
+								before = serverdata;
+								ke(0);
+							}
+						} else {
+							println('$red;$bold;Ошибка получения изначальных данных$e;: '+(status?(['','Отказано в доступе','Сервер не найден'])[data.errCode]:'~')+'$e;')
+							next();
+						}
+					});
+
+
+				function requestEdit(options) {
+					GET(SERVER_HOST+'/games/edit?token='+encodeURIComponent(token)+'&'+
+						Array.from(Object.keys(options), key => key+'='+encodeURIComponent(options[key])).join('&'),
+						(status, data) => {
+							if (status) {
+								if (data.status === 'ok') {
+									println('Запись о сервере $bold;"'+options.name+'"$e; изменена $green;успешно$e;.');
+								} else {
+									println('$red;$bold;Ошибка$e;: '+(['','Отказано в доступе', 'Сервер не найден'])[data.errCode]+'$e;')
+								}
+							} else 
+								println('$red;Ошибка$e;');
+							next();
+						})
+				}
+				break;
+			case 'new':
+				keys = ['game', 'name', 'host', 'apihost'];
+				data = {};
+				function kn(i) {
+					if (i == keys.length) {
+						requestNew(data);
+						return;
+					}
+					ask('$bold;'+keys[i]+'$e;: ', function (answer) {
+						data[keys[i]] = answer;
+						kn(i+1);
+					});
+				}
+				kn(0);
+
+				function requestNew(options) {
+					GET(SERVER_HOST+'/games/new?token='+encodeURIComponent(token)+'&'+
+						Array.from(Object.keys(options), key => key+'='+encodeURIComponent(options[key])).join('&'),
+						(status, data) => {
+							if (status) {
+								if (data.status === 'ok') {
+									println('Запись о сервере $bold;"'+options.name+'"$e; добавлена $green;успешно$e;.');
+									println('Секрет сервера: $grey;'+data.secret+'$e;');
+								} else {
+									println('$red;$bold;Ошибка$e;: '+(['','Отказано в доступе', 'Запись о сервере с таким именем уже была совершена'])[data.errCode]+'$e;')
+								}
+							} else 
+								println('$red;Ошибка$e;');
+							next();
+						})
+				}
 				break;
 			default:
 				println('Команда $bold;"'+command+'"$e; не найдена.');

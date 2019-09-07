@@ -2,17 +2,32 @@ let pre = document.querySelector('pre');
 let input = document.querySelector('input');
 
 input.focus();
-input.addEventListener('blur', input.focus);
+window.addEventListener('keyup', tryToFocus);
+window.addEventListener('keypress', tryToFocus);
+window.addEventListener('keydown', tryToFocus);
 input.addEventListener('selectionchange', handleInputChange);
 input.addEventListener('keyup', handleInputChange);
 input.addEventListener('keypress', handleInputChange);
 input.addEventListener('keydown', handleInputChange);
+function tryToFocus(e) {
+	if (!e.ctrlKey && e.key != 'Control')
+		input.focus();
+}
 function handleInputChange(e) {
 	let value = input.value;
 	if (asking) {
 		if (e.type === 'keyup' && e.code == 'Enter') {
 			lastline(parse(askStr) + (askPass ? '*'.repeat(input.value.length) : input.value) + '\n');
 			askCallback(input.value);
+		} else if (e.type === 'keyup' && (e.code == 'ArrowUp' || e.code == 'ArrowDown')) {
+			if (historyIndex == -1)
+				historyIndex = history.length;
+			historyIndex += (e.code == 'ArrowUp' ? -1 : 1);
+			if (historyIndex < 0)
+				historyIndex = -1;
+			if (historyIndex < history.length)
+				input.value = historyIndex == -1 ? '' : history[historyIndex];
+			lastline(parse(askStr) + parse(addSelection(input, askPass)));
 		} else
 			lastline(parse(askStr) + parse(addSelection(input, askPass)));
 	}
@@ -21,7 +36,8 @@ function handleInputChange(e) {
 let asking = false,
 	askStr = null,
 	askCallback = null,
-	askPass = null;
+	askPass = null,
+	history = [], historyIndex = -1;
 function ask(str, callback, pass) {
 	if (typeof pass === 'undefined')
 		pass = false;
@@ -37,7 +53,10 @@ function ask(str, callback, pass) {
 		askCallback = null;
 		askStr = null;
 		_lastline = null;
-		console.log('answer: ' + answer)
+		if (!pass) {
+			history.push(answer);
+			historyIndex = -1;
+		}
 		callback(answer);
 	}
 }
@@ -92,7 +111,10 @@ function println(str) {
 	print(str + '\n');
 }
 function print(str) {
+	let shouldScroll = Math.abs(pre.scrollTop - (pre.scrollHeight - pre.clientHeight)) < 25;
 	pre.innerHTML += parse(str);
+	if (shouldScroll)
+		setTimeout(() => pre.scrollTop = pre.scrollHeight - pre.clientHeight, 2);
 }
 function clear() {
 	pre.innerHTML = '';
